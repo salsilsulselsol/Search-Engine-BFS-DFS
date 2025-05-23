@@ -10,7 +10,7 @@ SEED_URL = "https://upi.edu"
 MAX_PAGES_TO_CRAWL = 100
 
 # Batas jumlah hasil pencarian yang ditampilkan.
-SEARCH_RESULT_LIMIT = 10
+SEARCH_RESULT_LIMIT = 100
 
 # Strategi crawling: "BFS" atau "DFS"
 # BFS akan menjelajah level demi level (lebih melebar).

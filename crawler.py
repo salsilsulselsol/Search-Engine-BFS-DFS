@@ -7,6 +7,8 @@ import bs4 # Import bs4 to explicitly catch its exceptions
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin #
 from collections import deque #
+import time
+from collections import deque
 import re #
 import os
 
@@ -20,6 +22,7 @@ class WebCrawler:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
+        
         self.strategy = strategy.upper()
         if self.strategy not in ["BFS", "DFS"]:
             raise ValueError("Strategi crawling tidak didukung. Pilih 'BFS' atau 'DFS'.")
@@ -72,7 +75,7 @@ class WebCrawler:
                     soup = BeautifulSoup(response.content, 'html.parser')
                     title = soup.title.string.strip() if soup.title and soup.title.string else default_title
                     
-                    content_tags = soup.find_all(['p', 'h1', 'h2', 'h3', 'li', 'span', 'article', 'main'])
+                    content_tags = soup.find_all(['p', 'h1', 'h2', 'h3','h4','h5', 'li', 'span', 'article', 'main'])
                     texts = [tag.get_text(separator=' ', strip=True) for tag in content_tags]
                     content = ' '.join(texts)
                     content = re.sub(r'\s+', ' ', content).strip() #
@@ -121,44 +124,78 @@ class WebCrawler:
             print(f"Unexpected error processing {url}: {e}. Storing link.")
             return default_title, "", [] # Konten kosong
 
-    def crawl(self, max_pages): #
-        print(f"Memulai crawling dari: {self.seed_url} menggunakan strategi: {self.strategy}") #
-        self.frontier.append((self.seed_url, None, [(self.seed_url, "Seed URL")])) #
-        self.visited_urls.add(self.seed_url) #
-        crawled_count = 0 #
+    def crawl_bfs(self, max_pages):
+        print(f"Memulai crawling (BFS) dari: {self.seed_url}")
+        self.queue = deque()
+        self.queue.append((self.seed_url, None, [(self.seed_url, "Seed URL")], 0))  # (url, parent, path_info, depth)
+        self.visited_urls.add(self.seed_url)
+        crawled_count = 0
+        max_depth = 0
 
-        while self.frontier and crawled_count < max_pages: #
-            if self.strategy == "BFS":
-                current_url, parent_url, current_path_info = self.frontier.popleft() #
-            elif self.strategy == "DFS":
-                current_url, parent_url, current_path_info = self.frontier.pop() #
-            else:
-                print(f"Strategi '{self.strategy}' tidak dikenali.")
-                return
+        start_time = time.time()
 
-            print(f"Processing ({crawled_count+1}/{max_pages}) [{self.strategy}]: {current_url}")
+        while self.queue and crawled_count < max_pages:
+            current_url, parent_url, current_path_info, current_depth = self.queue.popleft()
+            print(f"Crawling ({crawled_count+1}/{max_pages}) [BFS]: {current_url} (depth={current_depth})")
 
-            title, content, new_links_from_page = self._fetch_and_extract_html_info(current_url)
-            
-            self.crawled_data[current_url] = { #
-                'title': title, #
-                'content': content, # Sekarang akan "" untuk file atau error
-                'parent_url': parent_url, #
-                'path_info': current_path_info #
+            title, content, new_links = self._fetch_and_extract_html_info(current_url)
+            self.crawled_data[current_url] = {
+                'title': title,
+                'content': content,
+                'parent_url': parent_url,
+                'path_info': current_path_info,
+                'depth': current_depth
             }
-            crawled_count += 1 #
+            crawled_count += 1
+            max_depth = max(max_depth, current_depth)
 
-            if new_links_from_page:
-                if self.strategy == "DFS":
-                    new_links_from_page.reverse()
+            if new_links:
+                for link_url, link_text in new_links:
+                    if link_url not in self.visited_urls:
+                        self.visited_urls.add(link_url)
+                        new_path = current_path_info + [(link_url, link_text)]
+                        self.queue.append((link_url, current_url, new_path, current_depth + 1))
 
-                for link_url, link_text in new_links_from_page: #
-                    if link_url not in self.visited_urls: #
-                        self.visited_urls.add(link_url) #
-                        new_path_info_for_link = current_path_info + [(link_url, link_text)] #
-                        self.frontier.append((link_url, current_url, new_path_info_for_link)) #
-            
-        print(f"Crawling selesai. Total URL diproses: {crawled_count}") #
+        duration = time.time() - start_time
+        print(f"Crawling BFS selesai. Total halaman: {crawled_count}, Max kedalaman: {max_depth}, Durasi: {duration:.2f} detik")
+
+
+    def crawl_dfs(self, max_pages):
+        print(f"Memulai crawling (DFS) dari: {self.seed_url}")
+        self.stack = []
+        self.stack.append((self.seed_url, None, [(self.seed_url, "Seed URL")], 0))  # (url, parent, path_info, depth)
+        self.visited_urls.add(self.seed_url)
+        crawled_count = 0
+        max_depth = 0
+
+        start_time = time.time()
+
+        while self.stack and crawled_count < max_pages:
+            current_url, parent_url, current_path_info, current_depth = self.stack.pop()
+            print(f"Crawling ({crawled_count+1}/{max_pages}) [DFS]: {current_url} (depth={current_depth})")
+
+            title, content, new_links = self._fetch_and_extract_html_info(current_url)
+            self.crawled_data[current_url] = {
+                'title': title,
+                'content': content,
+                'parent_url': parent_url,
+                'path_info': current_path_info,
+                'depth': current_depth
+            }
+            crawled_count += 1
+            max_depth = max(max_depth, current_depth)
+
+            if new_links:
+                for link_url, link_text in reversed(new_links):  # reversed = urutan DFS
+                    if link_url not in self.visited_urls:
+                        self.visited_urls.add(link_url)
+                        new_path = current_path_info + [(link_url, link_text)]
+                        self.stack.append((link_url, current_url, new_path, current_depth + 1))
+
+        duration = time.time() - start_time
+        print(f"Crawling DFS selesai. Total halaman: {crawled_count}, Max kedalaman: {max_depth}, Durasi: {duration:.2f} detik")
+
+
 
     def search(self, keyword, limit): #
         results = [] #
