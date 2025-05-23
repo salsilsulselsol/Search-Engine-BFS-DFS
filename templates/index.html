@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesin Pencari Internal Organisasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .search-container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .search-input {
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 16px;
+            width: 100%;
+            transition: border-color 0.3s ease;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        }
+        .search-button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+        }
+        .search-button:hover {
+            background-color: #2563eb;
+            transform: translateY(-2px);
+        }
+        .result-item {
+            background-color: #f9fafb;
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 16px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .result-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        }
+        .result-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+        .result-url {
+            color: #4a5568;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+        .result-snippet {
+            color: #4a5568;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        .path-button {
+            background-color: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+        }
+        .path-button:hover {
+            background-color: #059669;
+        }
+        .path-modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 25px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .path-list {
+            list-style: none;
+            padding: 0;
+        }
+        .path-list li {
+            background-color: #edf2f7;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .path-list li:last-child {
+            margin-bottom: 0;
+        }
+        .path-list li .path-step-label {
+            font-weight: 600;
+            color: #2d3748;
+        }
+        .path-list li .path-step-url {
+            font-size: 0.85rem;
+            color: #4a5568;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="search-container">
+        <h1 class="text-3xl font-bold text-center mb-8 text-blue-700">Mesin Pencari Internal Organisasi</h1>
+
+        
+        
+
+        <form action="/search" method="post" class="mb-8 flex flex-col sm:flex-row gap-4">
+            <input type="text" name="keyword" placeholder="Masukkan kata kunci pencarian..."
+                   class="search-input flex-grow" value="{{ keyword if keyword else '' }}">
+            <button type="submit" class="search-button">Cari</button>
+        </form>
+
+        {% if error %}
+            <p class="text-red-500 text-center mb-4">{{ error }}</p>
+        {% endif %}
+
+        {% if results %}
+            <h2 class="text-xl font-semibold mb-6 text-gray-700">Hasil Pencarian untuk "{{ keyword }}"</h2>
+            <div id="search-results">
+                {% for result in results %}
+                    <div class="result-item flex flex-col">
+                        <a href="{{ result.url }}" target="_blank" class="result-title hover:underline">{{ result.title }}</a>
+                        <p class="result-url">{{ result.url }}</p>
+                        <p class="result-snippet">{{ result.snippet }}</p>
+                        <button class="path-button self-end" data-url="{{ result.url }}">Lihat Rute Link</button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% elif keyword and not results %}
+            <p class="text-center text-gray-600">Tidak ada hasil ditemukan untuk "{{ keyword }}".</p>
+        {% endif %}
+    </div>
+
+    <div id="pathModal" class="path-modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 class="text-2xl font-bold mb-4 text-blue-600">Rute Tautan</h2>
+            <p class="mb-4 text-gray-700">Rute dari <strong id="seedUrlDisplay"></strong> ke <strong id="targetUrlDisplay"></strong>:</p>
+            <ul id="pathList" class="path-list">
+                </ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const pathButtons = document.querySelectorAll('.path-button');
+            const pathModal = document.getElementById('pathModal');
+            const closeButton = document.querySelector('.close-button');
+            const pathList = document.getElementById('pathList');
+            const seedUrlDisplay = document.getElementById('seedUrlDisplay');
+            const targetUrlDisplay = document.getElementById('targetUrlDisplay');
+
+            // Set seed URL display from Python variable (passed via Jinja2)
+            // Or you can hardcode it if it's always the same
+            seedUrlDisplay.textContent = "{{ SEED_URL }}"; // This will be rendered by Flask
+
+            pathButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetUrl = this.dataset.url;
+                    targetUrlDisplay.textContent = targetUrl; // Display the target URL in modal
+
+                    // Fetch path details from Flask backend
+                    fetch(`/get_link_path?url=${encodeURIComponent(targetUrl)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            pathList.innerHTML = ''; // Clear previous path
+                            if (data.path && data.path.length > 0) {
+                                data.path.forEach((step, index) => {
+                                    const listItem = document.createElement('li');
+                                    listItem.innerHTML = `
+                                        <div class="path-step-label">${index + 1}. ${step[1]}</div>
+                                        <div class="path-step-url">${step[0]}</div>
+                                    `;
+                                    pathList.appendChild(listItem);
+                                });
+                            } else {
+                                const listItem = document.createElement('li');
+                                listItem.textContent = 'Rute tidak ditemukan atau halaman ini adalah seed URL.';
+                                pathList.appendChild(listItem);
+                            }
+                            pathModal.style.display = 'flex'; // Show the modal
+                        })
+                        .catch(error => {
+                            console.error('Error fetching path:', error);
+                            pathList.innerHTML = '<li>Gagal memuat rute.</li>';
+                            pathModal.style.display = 'flex';
+                        });
+                });
+            });
+
+            closeButton.addEventListener('click', function() {
+                pathModal.style.display = 'none'; // Hide the modal
+            });
+
+            window.addEventListener('click', function(event) {
+                if (event.target == pathModal) {
+                    pathModal.style.display = 'none'; // Hide modal if clicked outside content
+                }
+            });
+        });
+    </script>
+</body>
+</html>
