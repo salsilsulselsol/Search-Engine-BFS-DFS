@@ -1,11 +1,11 @@
 /* static/style.css */
-/* File ini bisa Anda gunakan untuk styling tambahan atau kustomisasi */
-/* Sebagian besar styling sudah ada di dalam tag <style> di index.html */
-/* Anda bisa memindahkan styling dari index.html ke sini jika diinginkan */
-/* Contoh: */
-/*
+
+/* Font Impor bisa diletakkan di sini jika tidak menggunakan CDN di HTML */
+/* @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap'); */
+
 body {
     font-family: 'Inter', sans-serif;
     background-color: #f0f2f5;
+    color: #1f2937;
+    line-height: 1.6;
 }
-*/

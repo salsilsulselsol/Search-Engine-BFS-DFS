@@ -79,4 +79,4 @@ if __name__ == '__main__':
     chosen_strategy = get_crawl_strategy_from_input()
     flask_app = create_app(chosen_strategy)
     print("\nServer Flask berjalan di http://127.0.0.1:5000/")
-    flask_app.run(debug=False)
+    flask_app.run(debug=True)
