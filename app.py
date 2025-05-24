@@ -40,11 +40,11 @@ def create_app(selected_strategy):
         print(f"Kesalahan inisialisasi crawler: {e}")
         exit()
 
-    print(f"\nMulai crawling menggunakan strategi: {selected_strategy}")
+    print(f"\nMulai crawling menggunakan strategi: {selected_strategy} hingga kedalaman maksimal: {config.MAX_DEPTH}")
     if selected_strategy == "BFS":
-        crawler_instance.crawl_bfs(max_pages=config.MAX_PAGES_TO_CRAWL)
-    else:
-        crawler_instance.crawl_dfs(max_pages=config.MAX_PAGES_TO_CRAWL)
+        crawler_instance.crawl_bfs() # Dihapus max_pages
+    else: # DFS
+        crawler_instance.crawl_dfs() # Dihapus max_pages
     print("Crawling selesai.")
 
     # --- Rute Flask ---
@@ -78,5 +78,5 @@ def create_app(selected_strategy):
 if __name__ == '__main__':
     chosen_strategy = get_crawl_strategy_from_input()
     flask_app = create_app(chosen_strategy)
-    print("\nServer Flask berjalan di http://127.0.0.1:5000/")
+    print(f"\nServer Flask berjalan di http://127.0.0.1:5000/ (Seed: {config.SEED_URL}, Max Depth: {config.MAX_DEPTH})")
     flask_app.run(debug=False)

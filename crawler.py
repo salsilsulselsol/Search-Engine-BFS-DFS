@@ -6,17 +6,18 @@ import requests
 import bs4 # Import bs4 to explicitly catch its exceptions
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
-from collections import deque
+from collections import deque, defaultdict # defaultdict untuk distribusi kedalaman
 import time
 import re
 import os
+import config # Import config untuk mengakses MAX_DEPTH
 
 class WebCrawler:
-    def __init__(self, seed_url, base_domain, strategy="BFS"): #
-        self.seed_url = seed_url #
-        self.base_domain = base_domain #
+    def __init__(self, seed_url, base_domain, strategy="BFS"):
+        self.seed_url = seed_url
+        self.base_domain = base_domain
         self.visited_urls = set()
-        self.frontier = deque() #
+        # self.frontier akan diinisialisasi di metode crawl_bfs/dfs
         self.crawled_data = {}
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -26,14 +27,23 @@ class WebCrawler:
         if self.strategy not in ["BFS", "DFS"]:
             raise ValueError("Strategi crawling tidak didukung. Pilih 'BFS' atau 'DFS'.")
 
-    def _is_same_organization(self, url): #
-        parsed_url = urlparse(url) #
+        # Statistik untuk analisis
+        self.stats = {
+            "total_links_extracted": 0,
+            "total_unique_domain_links_added_to_frontier": 0,
+            "http_errors": 0,
+            "request_errors": 0,
+            "non_html_pages": 0,
+            "pages_per_depth": defaultdict(int)
+        }
+
+    def _is_same_organization(self, url):
+        parsed_url = urlparse(url)
         if parsed_url.scheme not in ('http', 'https'):
             return False
-        return parsed_url.netloc.endswith(self.base_domain) #
+        return parsed_url.netloc.endswith(self.base_domain)
 
     def _get_filename_from_url(self, url):
-        """Mencoba mendapatkan nama file dari URL."""
         try:
             path = urlparse(url).path
             filename = os.path.basename(path)
@@ -43,26 +53,21 @@ class WebCrawler:
             pass
         parsed_url = urlparse(url)
         if parsed_url.path and parsed_url.path != '/':
-             # Ambil bagian terakhir dari path
             return parsed_url.path.strip('/').split('/')[-1]
-        return parsed_url.netloc # Fallback ke domain jika path kosong atau hanya "/"
+        return parsed_url.netloc
 
     def _fetch_and_extract_html_info(self, url, link_text_from_parent=None):
-        """
-        Mengambil konten halaman web. Jika HTML, mengekstrak info.
-        Mengembalikan tuple (title, content, new_links_from_page).
-        Untuk non-HTML atau error, title bisa nama file/URL atau anchor text, content kosong, new_links kosong.
-        """
         fallback_title = link_text_from_parent if link_text_from_parent and link_text_from_parent != url else self._get_filename_from_url(url)
+        # time.sleep(0.5) # Dihilangkan sesuai permintaan
 
         try:
-            response = requests.get(url, timeout=10, headers=self.headers, allow_redirects=True) #
-            actual_url = response.url # URL setelah redirect, jika ada
+            response = requests.get(url, timeout=10, headers=self.headers, allow_redirects=True)
+            actual_url = response.url
 
             if response.status_code >= 400:
-                print(f"HTTP error {response.status_code} for {url} (final URL: {actual_url}). Storing link with anchor text as title if available.")
-                title_for_error = link_text_from_parent if link_text_from_parent and link_text_from_parent != url else self._get_filename_from_url(url)
-                return title_for_error, "", [] # KONTEN KOSONG untuk error
+                print(f"Error HTTP {response.status_code} untuk {url} (URL final: {actual_url}). Menyimpan link dengan anchor text sebagai judul jika tersedia.")
+                self.stats["http_errors"] += 1
+                return fallback_title, "", [], False # Menambahkan status is_html
 
             content_type = response.headers.get('Content-Type', '').lower()
 
@@ -80,7 +85,7 @@ class WebCrawler:
                                         soup.find('div', class_='content')
 
                     if main_content_area:
-                        texts_tags = main_content_area.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'pre', 'span']) # span bisa jadi penting di konten
+                        texts_tags = main_content_area.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'pre', 'span'])
                         content = ' '.join([tag.get_text(separator=' ', strip=True) for tag in texts_tags])
                     
                     if not content.strip():
@@ -88,136 +93,207 @@ class WebCrawler:
                         texts_fallback = [tag.get_text(separator=' ', strip=True) for tag in content_tags_fallback]
                         content = ' '.join(texts_fallback)
 
-                    content = re.sub(r'\s+', ' ', content).strip() #
+                    content = re.sub(r'\s+', ' ', content).strip()
                     
                     if not content.strip():
                         body_tag = soup.find('body')
                         if body_tag:
                             content = body_tag.get_text(separator=' ', strip=True)
-                            content = re.sub(r'\s+', ' ', content).strip() #
+                            content = re.sub(r'\s+', ' ', content).strip()
                     
                     new_links = []
-                    for a_tag in soup.find_all('a', href=True): #
+                    for a_tag in soup.find_all('a', href=True):
+                        self.stats["total_links_extracted"] += 1 # Menghitung semua link yang diekstrak
                         href = a_tag['href']
                         if href.lower().startswith(('mailto:', 'tel:', 'javascript:', '#')):
                             continue
                         
-                        absolute_url = urljoin(actual_url, href) #
-                        parsed_absolute_url = urlparse(absolute_url) #
-                        absolute_url = parsed_absolute_url._replace(fragment="").geturl() #
+                        absolute_url = urljoin(actual_url, href)
+                        parsed_absolute_url = urlparse(absolute_url)
+                        absolute_url = parsed_absolute_url._replace(fragment="").geturl()
                         
                         if parsed_absolute_url.scheme not in ('http', 'https'):
                             continue
-                        if self._is_same_organization(absolute_url): #
+                        if self._is_same_organization(absolute_url):
                             link_text = a_tag.get_text(strip=True)
                             if not link_text:
                                 link_text = a_tag.get('title', '').strip() or \
                                             a_tag.get('aria-label', '').strip() or \
                                             absolute_url
-                            new_links.append((absolute_url, link_text)) #
+                            new_links.append((absolute_url, link_text))
                     
-                    return title, content, new_links
+                    return title, content, new_links, True # is_html = True
 
                 except bs4.exceptions.ParserRejectedMarkup as e:
-                    print(f"Markup parsing error (ParserRejectedMarkup) for HTML {url}: {e}")
-                    return fallback_title, "", [] # KONTEN KOSONG
-                except Exception as e: #
-                    print(f"General error parsing or processing HTML for {url}: {e}")
-                    return fallback_title, "", [] # KONTEN KOSONG
+                    print(f"Error parsing markup (ParserRejectedMarkup) untuk HTML {url}: {e}")
+                    return fallback_title, "", [], True # Dianggap HTML karena tipe konten, meski gagal parse
+                except Exception as e:
+                    print(f"Error umum parsing atau proses HTML untuk {url}: {e}")
+                    return fallback_title, "", [], True # Dianggap HTML
             else:
-                # Jika bukan HTML (misalnya PDF, DOCX, dll.)
-                print(f"Storing non-HTML content at {url} (Content-Type: {content_type}) as a link.")
+                print(f"Menyimpan konten non-HTML di {url} (Content-Type: {content_type}) sebagai link.")
+                self.stats["non_html_pages"] += 1
                 non_html_title = self._get_filename_from_url(url)
-                return non_html_title, "", [] # KONTEN KOSONG
+                return non_html_title, "", [], False # is_html = False
 
-        except requests.exceptions.HTTPError as e: #
-            print(f"HTTP error during request for {url}: {e}. Storing link with anchor text as title if available.")
-            title_for_http_error = link_text_from_parent if link_text_from_parent and link_text_from_parent != url else self._get_filename_from_url(url)
-            return title_for_http_error, "", [] # KONTEN KOSONG
-        except requests.exceptions.RequestException as e: #
-            print(f"Request exception for {url}: {e}. Storing link with anchor text as title if available.")
-            title_for_req_error = link_text_from_parent if link_text_from_parent and link_text_from_parent != url else self._get_filename_from_url(url)
-            return title_for_req_error, "", [] # KONTEN KOSONG
-        except Exception as e: #
-            print(f"Unexpected error processing {url}: {e}. Storing link.")
-            title_for_unexp_error = link_text_from_parent if link_text_from_parent and link_text_from_parent != url else self._get_filename_from_url(url)
-            return title_for_unexp_error, "", [] # KONTEN KOSONG
+        except requests.exceptions.HTTPError as e:
+            print(f"Error HTTP saat request untuk {url}: {e}. Menyimpan link dengan anchor text sebagai judul jika tersedia.")
+            self.stats["http_errors"] += 1 # Dihitung sebagai HTTP error juga
+            return fallback_title, "", [], False
+        except requests.exceptions.RequestException as e:
+            print(f"Request exception untuk {url}: {e}. Menyimpan link dengan anchor text sebagai judul jika tersedia.")
+            self.stats["request_errors"] += 1
+            return fallback_title, "", [], False
+        except Exception as e:
+            print(f"Error tak terduga saat memproses {url}: {e}. Menyimpan link.")
+            # Bisa jadi error lain, tidak secara spesifik request error
+            return fallback_title, "", [], False
 
-    def crawl_bfs(self, max_pages):
-        print(f"Memulai crawling (BFS) dari: {self.seed_url}")
-        self.queue = deque()
-        self.queue.append((self.seed_url, None, [(self.seed_url, "Seed URL")], 0))
+    def _reset_stats(self):
+        self.stats = {
+            "total_links_extracted": 0,
+            "total_unique_domain_links_added_to_frontier": 0,
+            "http_errors": 0,
+            "request_errors": 0,
+            "non_html_pages": 0,
+            "pages_per_depth": defaultdict(int)
+        }
+        self.visited_urls = set()
+        self.crawled_data = {}
+
+
+    def crawl_bfs(self):
+        self._reset_stats()
+        print(f"Memulai crawling (BFS) dari: {self.seed_url} dengan MAX_DEPTH={config.MAX_DEPTH}")
+        queue = deque() # Frontier spesifik untuk metode ini
+        queue.append((self.seed_url, None, [(self.seed_url, "Seed URL")], 0)) # url, parent_url, path_info, depth
         self.visited_urls.add(self.seed_url)
+        self.stats["total_unique_domain_links_added_to_frontier"] +=1
+
         crawled_count = 0
-        max_depth = 0
+        max_depth_reached = 0
         start_time = time.time()
 
-        while self.queue and crawled_count < max_pages:
-            current_url, parent_url, current_path_info, current_depth = self.queue.popleft()
+        while queue:
+            current_url, parent_url, current_path_info, current_depth = queue.popleft()
+            
+            if current_depth > config.MAX_DEPTH:
+                continue
+
             link_text_for_current_url = current_path_info[-1][1] if current_path_info else self._get_filename_from_url(current_url)
             
-            print(f"Crawling ({crawled_count+1}/{max_pages}) [BFS]: {current_url} (depth={current_depth}, from_text='{link_text_for_current_url[:50]}...')")
+            print(f"Crawling ke-{crawled_count+1} [BFS]: {current_url} (kedalaman={current_depth}, dari_teks='{link_text_for_current_url[:50]}...')")
 
-            title, content, new_links = self._fetch_and_extract_html_info(current_url, link_text_for_current_url)
+            title, content, new_links, is_html = self._fetch_and_extract_html_info(current_url, link_text_for_current_url)
             
             self.crawled_data[current_url] = {
                 'title': title,
-                'content': content, # Akan "" jika error atau non-HTML
+                'content': content,
                 'parent_url': parent_url,
                 'path_info': current_path_info,
-                'depth': current_depth
+                'depth': current_depth,
+                'is_html': is_html
             }
             crawled_count += 1
-            max_depth = max(max_depth, current_depth)
+            self.stats["pages_per_depth"][current_depth] += 1
+            max_depth_reached = max(max_depth_reached, current_depth)
 
-            if new_links:
-                for link_url, link_text in new_links:
-                    if link_url not in self.visited_urls:
-                        self.visited_urls.add(link_url)
-                        new_path = current_path_info + [(link_url, link_text)]
-                        self.queue.append((link_url, current_url, new_path, current_depth + 1))
+            if current_depth < config.MAX_DEPTH:
+                if new_links:
+                    for link_url, link_text in new_links:
+                        if link_url not in self.visited_urls:
+                            self.visited_urls.add(link_url)
+                            self.stats["total_unique_domain_links_added_to_frontier"] +=1
+                            new_path = current_path_info + [(link_url, link_text)]
+                            queue.append((link_url, current_url, new_path, current_depth + 1))
 
         duration = time.time() - start_time
-        print(f"Crawling BFS selesai. Total halaman: {crawled_count}, Max kedalaman: {max_depth}, Durasi: {duration:.2f} detik")
+        print("\n--- Statistik Crawling BFS Selesai ---")
+        print(f"Strategi Crawling Digunakan: BFS")
+        print(f"Seed URL: {self.seed_url}")
+        print(f"MAX_DEPTH Dikonfigurasi: {config.MAX_DEPTH}")
+        print(f"Total Halaman Berhasil Di-crawl: {crawled_count}")
+        print(f"Kedalaman Maksimum Tercapai: {max_depth_reached}")
+        print(f"Total Durasi Crawling: {duration:.2f} detik")
+        print(f"Total Tautan Diekstrak (sebelum filter unik/domain): {self.stats['total_links_extracted']}")
+        print(f"Total Tautan Unik (dalam domain) Ditambahkan ke Frontier: {self.stats['total_unique_domain_links_added_to_frontier']}")
+        print(f"Jumlah Error HTTP (mis. 404, 403): {self.stats['http_errors']}")
+        print(f"Jumlah Error Request Lainnya (mis. timeout): {self.stats['request_errors']}")
+        print(f"Jumlah Halaman Non-HTML Ditemukan: {self.stats['non_html_pages']}")
+        print("Distribusi Halaman per Kedalaman:")
+        for depth, count in sorted(self.stats['pages_per_depth'].items()):
+            print(f"  Kedalaman {depth}: {count} halaman")
+        print("-------------------------------------\n")
 
 
-    def crawl_dfs(self, max_pages):
-        print(f"Memulai crawling (DFS) dari: {self.seed_url}")
-        self.stack = []
-        self.stack.append((self.seed_url, None, [(self.seed_url, "Seed URL")], 0))
+    def crawl_dfs(self):
+        self._reset_stats()
+        print(f"Memulai crawling (DFS) dari: {self.seed_url} dengan MAX_DEPTH={config.MAX_DEPTH}")
+        stack = [] # Frontier spesifik untuk metode ini
+        stack.append((self.seed_url, None, [(self.seed_url, "Seed URL")], 0)) 
         self.visited_urls.add(self.seed_url)
+        self.stats["total_unique_domain_links_added_to_frontier"] +=1
+        
         crawled_count = 0
-        max_depth = 0
+        max_depth_reached = 0
         start_time = time.time()
 
-        while self.stack and crawled_count < max_pages:
-            current_url, parent_url, current_path_info, current_depth = self.stack.pop()
+        while stack:
+            current_url, parent_url, current_path_info, current_depth = stack.pop()
+
+            if current_depth > config.MAX_DEPTH:
+                continue
+            
+            # Untuk DFS, URL bisa sudah dikunjungi tapi belum di-fetch jika ditemukan via path lain yg lebih dalam duluan
+            # Namun, karena kita add ke visited_urls saat push ke stack, jika di-pop dan ada di crawled_data berarti sudah diproses.
+            # Kita perlu memastikan URL hanya diproses sekali.
+            if current_url in self.crawled_data: # Jika sudah diproses, lewati
+                continue
+
             link_text_for_current_url = current_path_info[-1][1] if current_path_info else self._get_filename_from_url(current_url)
 
-            print(f"Crawling ({crawled_count+1}/{max_pages}) [DFS]: {current_url} (depth={current_depth}, from_text='{link_text_for_current_url[:50]}...')")
+            print(f"Crawling ke-{crawled_count+1} [DFS]: {current_url} (kedalaman={current_depth}, dari_teks='{link_text_for_current_url[:50]}...')")
 
-            title, content, new_links = self._fetch_and_extract_html_info(current_url, link_text_for_current_url)
+            title, content, new_links, is_html = self._fetch_and_extract_html_info(current_url, link_text_for_current_url)
             
             self.crawled_data[current_url] = {
                 'title': title,
-                'content': content, # Akan "" jika error atau non-HTML
+                'content': content,
                 'parent_url': parent_url,
                 'path_info': current_path_info,
-                'depth': current_depth
+                'depth': current_depth,
+                'is_html': is_html
             }
             crawled_count += 1
-            max_depth = max(max_depth, current_depth)
+            self.stats["pages_per_depth"][current_depth] += 1
+            max_depth_reached = max(max_depth_reached, current_depth)
 
-            if new_links:
-                for link_url, link_text in reversed(new_links):
-                    if link_url not in self.visited_urls:
-                        self.visited_urls.add(link_url)
-                        new_path = current_path_info + [(link_url, link_text)]
-                        self.stack.append((link_url, current_url, new_path, current_depth + 1))
+            if current_depth < config.MAX_DEPTH:
+                if new_links:
+                    for link_url, link_text in reversed(new_links): # Reverse untuk DFS
+                        if link_url not in self.visited_urls:
+                            self.visited_urls.add(link_url)
+                            self.stats["total_unique_domain_links_added_to_frontier"] +=1
+                            new_path = current_path_info + [(link_url, link_text)]
+                            stack.append((link_url, current_url, new_path, current_depth + 1))
         
         duration = time.time() - start_time
-        print(f"Crawling DFS selesai. Total halaman: {crawled_count}, Max kedalaman: {max_depth}, Durasi: {duration:.2f} detik")
-
+        print("\n--- Statistik Crawling DFS Selesai ---")
+        print(f"Strategi Crawling Digunakan: DFS")
+        print(f"Seed URL: {self.seed_url}")
+        print(f"MAX_DEPTH Dikonfigurasi: {config.MAX_DEPTH}")
+        print(f"Total Halaman Berhasil Di-crawl: {crawled_count}")
+        print(f"Kedalaman Maksimum Tercapai: {max_depth_reached}")
+        print(f"Total Durasi Crawling: {duration:.2f} detik")
+        print(f"Total Tautan Diekstrak (sebelum filter unik/domain): {self.stats['total_links_extracted']}")
+        print(f"Total Tautan Unik (dalam domain) Ditambahkan ke Frontier: {self.stats['total_unique_domain_links_added_to_frontier']}")
+        print(f"Jumlah Error HTTP (mis. 404, 403): {self.stats['http_errors']}")
+        print(f"Jumlah Error Request Lainnya (mis. timeout): {self.stats['request_errors']}")
+        print(f"Jumlah Halaman Non-HTML Ditemukan: {self.stats['non_html_pages']}")
+        print("Distribusi Halaman per Kedalaman:")
+        for depth, count in sorted(self.stats['pages_per_depth'].items()):
+            print(f"  Kedalaman {depth}: {count} halaman")
+        print("------------------------------------\n")
 
     def search(self, keyword, limit): #
         results = [] #
@@ -237,44 +313,37 @@ class WebCrawler:
                  content_text_lower = content_text.lower()
                  match_in_content = all(term in content_text_lower for term in search_terms)
 
-
             if match_in_title or match_in_content:
                 snippet = ""
-                # Prioritaskan snippet dari konten jika konten cocok dan ada
                 if content_text and match_in_content:
                     first_term_in_content_index = -1
-                    # Cari term pertama dari keyword yang muncul di konten untuk memulai snippet
                     current_search_term_for_snippet = ""
                     for term in search_terms:
                         try:
-                            # Cari posisi term yang case-insensitive
                             idx = content_text_lower.index(term)
                             if first_term_in_content_index == -1 or idx < first_term_in_content_index:
                                 first_term_in_content_index = idx
-                                current_search_term_for_snippet = term # Simpan term yang ditemukan
+                                current_search_term_for_snippet = term 
                         except ValueError:
                             continue
                     
                     if first_term_in_content_index != -1:
                         start_index = first_term_in_content_index
-                        snippet_start = max(0, start_index - 70) # Perluas konteks sebelum
-                        # Untuk snippet_end, kita ambil dari posisi term pertama + panjang term tersebut + buffer
-                        snippet_end = min(len(content_text), start_index + len(current_search_term_for_snippet) + 130) # Perluas konteks sesudah
+                        snippet_start = max(0, start_index - 70) 
+                        snippet_end = min(len(content_text), start_index + len(current_search_term_for_snippet) + 130) 
                         
                         prefix = "..." if snippet_start > 0 else ""
                         suffix = "..." if snippet_end < len(content_text) else ""
                         snippet = prefix + content_text[snippet_start:snippet_end] + suffix
-                    else: # Fallback jika tidak ada term yang ditemukan (seharusnya tidak terjadi jika match_in_content true)
+                    else: 
                          snippet = content_text[:200] + ('...' if len(content_text) > 200 else '')
                 
-                # Jika tidak ada snippet dari konten (misalnya konten tidak cocok atau tidak ada konten),
-                # dan judul cocok, buat snippet dari judul atau pesan default.
-                elif match_in_title: # Ini berarti konten tidak cocok atau tidak ada
-                    if not content_text: # Tidak ada konten sama sekali (misalnya halaman error atau file)
+                elif match_in_title: 
+                    if not content_text: 
                         snippet = ""
-                    else: # Ada konten, tapi tidak cocok dengan keyword, namun judul cocok
+                    else: 
                         snippet = f"Judul '{title_text}' cocok. Pratinjau konten: " + (content_text[:150] + ('...' if len(content_text) > 150 else ''))
-
+                
                 results.append({ #
                     'url': url, #
                     'title': title_text, #
