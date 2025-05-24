@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mesin Pencari Internal Organisasi</title>
+    <title>Mesin Pencari UPI.EDU</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.0.18/24/outline/magnifying-glass.svg" rel="stylesheet"> <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5; /* Warna latar belakang utama */
+            background-color: #f0f2f5; 
         }
         .search-container {
             max-width: 800px;
-            margin: 60px auto; /* Tambah margin atas */
-            padding: 30px; /* Perbesar padding */
+            margin: 60px auto; 
+            padding: 30px; 
             background-color: #ffffff;
-            border-radius: 16px; /* Lebih rounded */
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); /* Shadow lebih jelas */
+            border-radius: 16px; 
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); 
         }
         .search-input {
-            border: 2px solid #e2e8f0; /* Border lebih tebal */
-            border-radius: 10px; /* Lebih rounded */
-            padding: 14px 18px; /* Padding lebih besar */
+            border: 2px solid #e2e8f0; 
+            border-radius: 10px; 
+            padding: 14px 18px; 
             font-size: 1rem;
             width: 100%;
             transition: border-color 0.3s ease, box-shadow 0.3s ease;
@@ -31,13 +31,13 @@
         .search-input:focus {
             outline: none;
             border-color: #3b82f6;
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3); /* Shadow focus lebih jelas */
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3); 
         }
         .search-button {
             background-color: #3b82f6;
             color: white;
-            padding: 14px 28px; /* Padding lebih besar */
-            border-radius: 10px; /* Lebih rounded */
+            padding: 14px 28px; 
+            border-radius: 10px; 
             font-weight: 600;
             transition: background-color 0.3s ease, transform 0.2s ease;
             box-shadow: 0 4px 10px rgba(59, 130, 246, 0.35);
@@ -49,16 +49,16 @@
             background-color: #2563eb;
             transform: translateY(-2px);
         }
-        .search-button svg { /* Styling untuk icon di tombol */
+        .search-button svg { 
             margin-right: 8px;
         }
 
         .result-item {
-            background-color: #fff; /* Latar belakang putih untuk kontras */
-            padding: 20px; /* Padding lebih besar */
-            border-radius: 12px; /* Lebih rounded */
-            border: 1px solid #e5e7eb; /* Border halus */
-            margin-bottom: 20px; /* Jarak antar item */
+            background-color: #fff; 
+            padding: 20px; 
+            border-radius: 12px; 
+            border: 1px solid #e5e7eb; 
+            margin-bottom: 20px; 
             transition: transform 0.25s ease, box-shadow 0.25s ease;
         }
         .result-item:hover {
@@ -66,41 +66,40 @@
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
         }
         .result-title {
-            font-size: 1.35rem; /* Ukuran font judul lebih besar */
-            font-weight: 700; /* Lebih bold */
-            color: #1e3a8a; /* Warna biru tua untuk judul */
+            font-size: 1.35rem; 
+            font-weight: 700; 
+            color: #1e3a8a; 
             margin-bottom: 8px;
         }
         .result-title:hover {
-            color: #1d4ed8; /* Warna saat hover */
+            color: #1d4ed8; 
         }
         .result-url {
-            color: #059669; /* Warna hijau untuk URL */
+            color: #059669; 
             font-size: 0.9rem;
             margin-bottom: 10px;
             word-break: break-all;
         }
         .result-snippet {
-            color: #374151; /* Warna teks snippet lebih gelap */
-            font-size: 1rem; /* Ukuran font snippet */
+            color: #374151; 
+            font-size: 1rem; 
             line-height: 1.6;
             margin-bottom: 16px;
         }
         .path-button {
             background-color: #10b981;
             color: white;
-            padding: 10px 20px; /* Padding lebih besar */
-            border-radius: 8px; /* Lebih rounded */
+            padding: 10px 20px; 
+            border-radius: 8px; 
             font-size: 0.95rem;
-            font-weight: 600; /* Lebih bold */
+            font-weight: 600; 
             transition: background-color 0.3s ease;
-            align-self: flex-start; /* Rata kiri */
+            align-self: flex-start; 
         }
         .path-button:hover {
             background-color: #059669;
         }
 
-        /* Modal Styles */
         .path-modal {
             display: none;
             position: fixed;
@@ -110,7 +109,7 @@
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgba(0,0,0,0.5); /* Latar belakang lebih gelap */
+            background-color: rgba(0,0,0,0.5); 
             justify-content: center;
             align-items: center;
             padding: 20px;
@@ -118,25 +117,25 @@
         .modal-content {
             background-color: #ffffff;
             margin: auto;
-            padding: 30px; /* Padding lebih besar */
-            border-radius: 16px; /* Lebih rounded */
+            padding: 30px; 
+            border-radius: 16px; 
             width: 95%;
-            max-width: 650px; /* Lebar modal lebih besar */
+            max-width: 650px; 
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
             position: relative;
         }
         .close-button {
-            color: #718096; /* Warna abu-abu untuk tombol close */
+            color: #718096; 
             position: absolute;
             top: 15px;
             right: 25px;
-            font-size: 32px; /* Ukuran lebih besar */
+            font-size: 32px; 
             font-weight: bold;
             transition: color 0.2s ease;
         }
         .close-button:hover,
         .close-button:focus {
-            color: #1a202c; /* Warna lebih gelap saat hover */
+            color: #1a202c; 
             text-decoration: none;
             cursor: pointer;
         }
@@ -146,29 +145,28 @@
             margin-top: 10px;
         }
         .path-list li {
-            background-color: #f3f4f6; /* Latar belakang item path */
-            padding: 12px 18px; /* Padding lebih besar */
-            margin-bottom: 10px; /* Jarak antar item */
-            border-radius: 10px; /* Lebih rounded */
+            background-color: #f3f4f6; 
+            padding: 12px 18px; 
+            margin-bottom: 10px; 
+            border-radius: 10px; 
             display: flex;
             flex-direction: column;
             gap: 6px;
-            border-left: 4px solid #3b82f6; /* Aksen border kiri */
+            border-left: 4px solid #3b82f6; 
         }
         .path-list li:last-child {
             margin-bottom: 0;
         }
         .path-list li .path-step-label {
             font-weight: 600;
-            color: #1f2937; /* Warna teks lebih gelap */
+            color: #1f2937; 
         }
         .path-list li .path-step-url {
-            font-size: 0.9rem; /* Ukuran font URL */
-            color: #4b5563; /* Warna teks URL */
+            font-size: 0.9rem; 
+            color: #4b5563; 
             word-break: break-all;
         }
 
-        /* Animasi sederhana */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -177,7 +175,6 @@
             animation: fadeIn 0.5s ease-out;
         }
 
-        /* Footer sederhana */
         .footer {
             text-align: center;
             margin-top: 40px;
@@ -249,7 +246,7 @@
     </div>
 
     <footer class="footer">
-        <p>&copy; <span id="currentYear"></span> Mesin Pencari Internal. Dibuat dengan Flask & Tailwind CSS.</p>
+        <p>&copy; <span id="currentYear"></span> Mesin Pencari UPI.EDU. Dibuat dengan Flask & Tailwind CSS oleh Kelompok 5 C1.</p>
     </footer>
 
     <script>
@@ -258,7 +255,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             const pathButtons = document.querySelectorAll('.path-button');
             const pathModal = document.getElementById('pathModal');
-            const closeButton = pathModal.querySelector('.close-button'); // Lebih spesifik
+            const closeButton = pathModal.querySelector('.close-button');
             const pathList = document.getElementById('pathList');
             const seedUrlDisplay = document.getElementById('seedUrlDisplay');
             const targetUrlDisplay = document.getElementById('targetUrlDisplay');
@@ -282,7 +279,7 @@
                             if (data.path && data.path.length > 0) {
                                 data.path.forEach((step, index) => {
                                     const listItem = document.createElement('li');
-                                    const linkText = step[1] || 'Link (tanpa teks)'; // Fallback jika teks link kosong
+                                    const linkText = step[1] || 'Link (tanpa teks)';
                                     const urlText = step[0];
                                     listItem.innerHTML = `
                                         <div class="path-step-label"><span class="font-normal text-gray-500 mr-1">${index + 1}.</span> ${linkText}</div>
@@ -320,7 +317,6 @@
                 }
             });
 
-            // Tambahkan event listener untuk tombol Escape pada modal
             document.addEventListener('keydown', function(event) {
                 if (event.key === 'Escape' && pathModal.style.display === 'flex') {
                     pathModal.style.display = 'none';
