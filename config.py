@@ -1,4 +1,3 @@
-# config.py
 import os
 
 SEED_URL = "https://upi.edu"
